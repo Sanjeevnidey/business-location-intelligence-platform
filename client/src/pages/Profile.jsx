@@ -1,0 +1,5 @@
+import React from 'react';
+
+export default function Profile(){
+ return <div><div className="page-heading"><div><div className="eyebrow">ACCOUNT</div><h1>Profile & settings</h1><p>Manage your workspace preferences.</p></div></div><div className="two-col"><div className="panel"><h2>Profile</h2><label>Name<input defaultValue="Jordan Doe"/></label><label>Email<input defaultValue="jordan@example.com" /></label><button className="button primary">Save changes</button></div><div className="panel"><h2>Cloud & data</h2><div className="setting"><div><b>Data source</b><span>OpenStreetMap / public data</span></div><span className="status">Connected</span></div><div className="setting"><div><b>Database</b><span>MongoDB Atlas (backend scaffold)</span></div><span className="status">Ready</span></div><div className="setting"><div><b>Scoring model</b><span>Transparent weighted rules</span></div><span className="status">Active</span></div></div></div></div>
+}
