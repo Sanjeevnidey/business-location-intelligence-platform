@@ -1,5 +1,8 @@
-import { Router } from 'express';
+import express from 'express';
 import { getAnalysis } from '../controllers/analysisController.js';
-const router = Router();
+
+const router = express.Router();
+
 router.get('/', getAnalysis);
+
 export default router;
