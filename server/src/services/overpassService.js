@@ -36,46 +36,91 @@ const demo = [
   }
 ];
 
-export async function fetchNearbyPlaces(lat, lng, radiusKm) {
-  const query =
+export async function fetchNearbyPlaces(
+  lat,
+  lng,
+  radiusKm,
+  type = 'restaurant'
+) {
+
+  const typeToTag = {
+    restaurant: ['amenity', 'restaurant'],
+    cafe: ['amenity', 'cafe'],
+    hospital: ['amenity', 'hospital'],
+    school: ['amenity', 'school'],
+    bank: ['amenity', 'bank'],
+    pharmacy: ['amenity', 'pharmacy'],
+    supermarket: ['shop', 'supermarket']
+  };
+
+  const [key, value] =
+    typeToTag[type] || typeToTag.restaurant;
+
+  const radiusMeters = radiusKm * 1000;
+
+  let query;
+
+if (type === 'restaurant') {
+  query =
     `[out:json][timeout:25];` +
-    `(nwr["amenity"](around:${radiusKm * 1000},${lat},${lng});` +
-    `nwr["shop"](around:${radiusKm * 1000},${lat},${lng}););` +
+    `(` +
+    `nwr["amenity"="restaurant"](around:${radiusMeters},${lat},${lng});` +
+    `nwr["amenity"="fast_food"](around:${radiusMeters},${lat},${lng});` +
+    `);` +
     `out center tags;`;
+} else {
+  const [key, value] =
+    typeToTag[type] || typeToTag.restaurant;
+
+ const query =
+  `[out:json][timeout:15];` +
+  `nwr["amenity"~"restaurant|fast_food|cafe"]` +
+  `(around:${radiusMeters},${lat},${lng});` +
+  `out center tags;`;
+}
+
+  console.log(`Searching for ${type} within ${radiusKm} km`);
 
   try {
-    const r = await fetch(
-  'https://overpass-api.de/api/interpreter',
-  {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/x-www-form-urlencoded',
-      'User-Agent': 'GeoBiz-Intelligence-Platform/1.0'
-    },
-    body: `data=${encodeURIComponent(query)}`
-  }
-);
+    const response = await fetch(
+      'https://overpass-api.de/api/interpreter',
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded',
+          'User-Agent': 'GeoBiz-Intelligence-Platform/1.0'
+        },
+        body: `data=${encodeURIComponent(query)}`
+      }
+    );
 
-    if (!r.ok) {
-      throw new Error(`Overpass HTTP ${r.status}`);
+    if (!response.ok) {
+      throw new Error(
+        `Overpass HTTP ${response.status}`
+      );
     }
 
-    const json = await r.json();
+    const json = await response.json();
 
     return json.elements
-      .map((e, i) => ({
-        id: String(e.id ?? i),
-        name: e.tags?.name || 'Unnamed place',
-        category: e.tags?.amenity || e.tags?.shop || 'other',
-        lat: e.lat ?? e.center?.lat ?? lat,
-        lng: e.lon ?? e.center?.lon ?? lng
+      .map((element, index) => ({
+        id: String(element.id ?? index),
+        name: element.tags?.name || 'Unnamed place',
+        category: element.tags?.[key] || type,
+        lat: element.lat ?? element.center?.lat ?? lat,
+        lng: element.lon ?? element.center?.lon ?? lng
       }))
-      .filter(x => x.name !== 'Unnamed place')
+      .filter(place => place.name !== 'Unnamed place')
       .slice(0, 500);
 
   } catch (error) {
-    console.error('Overpass error:', error.message);
+    console.error(
+      'Overpass error:',
+      error.message
+    );
 
-  throw new Error(`Overpass request failed: ${error.message}`);
+    throw new Error(
+      `Overpass request failed: ${error.message}`
+    );
   }
 }

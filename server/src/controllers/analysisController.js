@@ -5,6 +5,7 @@ export async function getAnalysis(req, res) {
   try {
     const {
       city,
+      type = 'restaurant',
       radius = 5
     } = req.query;
 
@@ -22,7 +23,8 @@ export async function getAnalysis(req, res) {
     const places = await fetchNearbyPlaces(
       location.latitude,
       location.longitude,
-      Number(radius)
+      Number(radius),
+      type
     );
 
     res.json({
@@ -30,7 +32,8 @@ export async function getAnalysis(req, res) {
       location,
       radiusKm: Number(radius),
       totalPlaces: places.length,
-      places
+      places,
+      type
     });
 
   } catch (error) {

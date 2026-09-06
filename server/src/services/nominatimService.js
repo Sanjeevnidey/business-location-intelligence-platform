@@ -3,7 +3,8 @@ export async function geocodeLocation(location) {
     `https://nominatim.openstreetmap.org/search?` +
     `q=${encodeURIComponent(location)}` +
     `&format=json` +
-    `&limit=1`;
+    `&limit=5` +
+    `&addressdetails=1`;
 
   const response = await fetch(url, {
     headers: {
@@ -21,9 +22,26 @@ export async function geocodeLocation(location) {
     throw new Error(`Location "${location}" was not found`);
   }
 
+  console.log("Nominatim candidates:");
+  data.forEach((place, index) => {
+    console.log(index + 1, {
+      name: place.display_name,
+      type: place.type,
+      category: place.category,
+      latitude: place.lat,
+      longitude: place.lon
+    });
+  });
+
+  const best =
+  data.find(place => place.type === 'city') ||
+  data.find(place => place.type === 'town') ||
+  data.find(place => place.type === 'village') ||
+  data[0];
+
   return {
-    name: data[0].display_name,
-    latitude: Number(data[0].lat),
-    longitude: Number(data[0].lon)
+    name: best.display_name,
+    latitude: Number(best.lat),
+    longitude: Number(best.lon)
   };
 }
