@@ -1,126 +1,174 @@
-const demo = [
+const demoPlaces = [
   {
-    id: 'd1',
-    name: 'Green Leaf Restaurant',
+    id: 'demo1',
+    name: 'Sample Restaurant',
     category: 'restaurant',
-    lat: 12.921,
-    lng: 79.127
+    lat: 12.907,
+    lng: 79.131
   },
   {
-    id: 'd2',
-    name: 'City Cafe',
+    id: 'demo2',
+    name: 'Sample Cafe',
     category: 'cafe',
-    lat: 12.912,
-    lng: 79.142
-  },
-  {
-    id: 'd3',
-    name: 'Central School',
-    category: 'school',
-    lat: 12.924,
-    lng: 79.136
-  },
-  {
-    id: 'd4',
-    name: 'Health Plus',
-    category: 'hospital',
-    lat: 12.909,
-    lng: 79.126
-  },
-  {
-    id: 'd5',
-    name: 'Metro Bank',
-    category: 'bank',
-    lat: 12.917,
-    lng: 79.146
+    lat: 12.910,
+    lng: 79.135
   }
 ];
 
-export async function fetchNearbyPlaces(
-  lat,
-  lng,
-  radiusKm,
-  type = 'restaurant'
-) {
 
-  const typeToTag = {
-    restaurant: ['amenity', 'restaurant'],
-    cafe: ['amenity', 'cafe'],
-    hospital: ['amenity', 'hospital'],
-    school: ['amenity', 'school'],
-    bank: ['amenity', 'bank'],
-    pharmacy: ['amenity', 'pharmacy'],
-    supermarket: ['shop', 'supermarket']
-  };
+export async function fetchNearbyPlaces(lat, lng, radiusKm, type) {
 
-  const [key, value] =
-    typeToTag[type] || typeToTag.restaurant;
+  const radius = Number(radiusKm) * 1000;
 
-  const radiusMeters = radiusKm * 1000;
+  let query = '';
 
-  let query;
+  if (type === 'restaurant') {
 
-if (type === 'restaurant') {
-  query =
-    `[out:json][timeout:25];` +
-    `(` +
-    `nwr["amenity"="restaurant"](around:${radiusMeters},${lat},${lng});` +
-    `nwr["amenity"="fast_food"](around:${radiusMeters},${lat},${lng});` +
-    `);` +
-    `out center tags;`;
-} else {
-  const [key, value] =
-    typeToTag[type] || typeToTag.restaurant;
-
- const query =
-  `[out:json][timeout:15];` +
-  `nwr["amenity"~"restaurant|fast_food|cafe"]` +
-  `(around:${radiusMeters},${lat},${lng});` +
-  `out center tags;`;
-}
-
-  console.log(`Searching for ${type} within ${radiusKm} km`);
-
-  try {
-    const response = await fetch(
-      'https://overpass-api.de/api/interpreter',
-      {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/x-www-form-urlencoded',
-          'User-Agent': 'GeoBiz-Intelligence-Platform/1.0'
-        },
-        body: `data=${encodeURIComponent(query)}`
-      }
-    );
-
-    if (!response.ok) {
-      throw new Error(
-        `Overpass HTTP ${response.status}`
+    query = `
+      [out:json][timeout:15];
+      (
+        nwr["amenity"="restaurant"](around:${radius},${lat},${lng});
+        nwr["amenity"="fast_food"](around:${radius},${lat},${lng});
       );
+      out center tags;
+    `;
+
+  } else if (type === 'cafe') {
+
+    query = `
+      [out:json][timeout:15];
+      nwr["amenity"="cafe"](around:${radius},${lat},${lng});
+      out center tags;
+    `;
+
+  } else if (type === 'pharmacy') {
+
+    query = `
+      [out:json][timeout:15];
+      nwr["amenity"="pharmacy"](around:${radius},${lat},${lng});
+      out center tags;
+    `;
+
+  } else if (type === 'gym') {
+
+    query = `
+      [out:json][timeout:15];
+      nwr["leisure"="fitness_centre"](around:${radius},${lat},${lng});
+      out center tags;
+    `;
+
+  } else if (type === 'supermarket') {
+
+    query = `
+      [out:json][timeout:15];
+      nwr["shop"="supermarket"](around:${radius},${lat},${lng});
+      out center tags;
+    `;
+
+  } else {
+
+    query = `
+      [out:json][timeout:15];
+      (
+        nwr["amenity"](around:${radius},${lat},${lng});
+        nwr["shop"](around:${radius},${lat},${lng});
+      );
+      out center tags;
+    `;
+  }
+
+
+  const servers = [
+    'https://overpass-api.de/api/interpreter',
+    'https://overpass.kumi.systems/api/interpreter'
+  ];
+
+
+  for (const server of servers) {
+
+    try {
+
+      console.log(`Trying Overpass: ${server}`);
+
+      const controller = new AbortController();
+
+      const timeout = setTimeout(() => {
+        controller.abort();
+      }, 20000);
+
+
+      const response = await fetch(server, {
+        method: 'POST',
+
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded'
+        },
+
+        body: new URLSearchParams({
+          data: query
+        }),
+
+        signal: controller.signal
+      });
+
+
+      clearTimeout(timeout);
+
+
+      if (!response.ok) {
+        throw new Error(`Overpass HTTP ${response.status}`);
+      }
+
+
+      const data = await response.json();
+
+
+      const places = data.elements
+        .map((place, index) => ({
+
+          id: String(place.id || index),
+
+          name: place.tags?.name || 'Unnamed place',
+
+          category:
+            place.tags?.amenity ||
+            place.tags?.shop ||
+            place.tags?.leisure ||
+            'other',
+
+          lat: place.lat || place.center?.lat,
+
+          lng: place.lon || place.center?.lon
+
+        }))
+        .filter((place) => place.name !== 'Unnamed place');
+
+
+      console.log(`Found ${places.length} places`);
+
+      return places;
+
+
+    } catch (error) {
+
+      console.log(
+        `Overpass failed: ${server}`,
+        error.message
+      );
+
     }
 
-    const json = await response.json();
-
-    return json.elements
-      .map((element, index) => ({
-        id: String(element.id ?? index),
-        name: element.tags?.name || 'Unnamed place',
-        category: element.tags?.[key] || type,
-        lat: element.lat ?? element.center?.lat ?? lat,
-        lng: element.lon ?? element.center?.lon ?? lng
-      }))
-      .filter(place => place.name !== 'Unnamed place')
-      .slice(0, 500);
-
-  } catch (error) {
-    console.error(
-      'Overpass error:',
-      error.message
-    );
-
-    throw new Error(
-      `Overpass request failed: ${error.message}`
-    );
   }
+
+
+  console.log('Using fallback demo data');
+
+  return demoPlaces.map((place, index) => ({
+    ...place,
+
+    lat: lat + (index === 0 ? 0.005 : -0.004),
+
+    lng: lng + (index === 0 ? 0.006 : -0.005)
+
+  }));
 }
